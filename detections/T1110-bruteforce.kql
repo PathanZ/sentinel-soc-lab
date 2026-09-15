@@ -1,0 +1,23 @@
+// Detection: Brute-force authentication
+// MITRE ATT&CK: T1110 - Brute Force
+// Data source: SecurityEvent (Windows Security Event Log via Azure Monitor Agent)
+// Trigger event: 4625 (An account failed to log on)
+
+SecurityEvent
+| where EventID == 4625
+| where TimeGenerated > ago(1h)
+| summarize FailedAttempts = count(), 
+            TargetAccounts = make_set(Account), 
+            LatestAttempt = max(TimeGenerated)
+            by IpAddress, Computer
+| where FailedAttempts >= 5
+| order by FailedAttempts desc
+
+// Tuning notes:
+// - Threshold (5 failures/hour) is a starting point; adjust based on baseline
+//   noise observed in the lab environment before enabling as an analytics rule.
+// - Consider excluding known service accounts / scheduled health-check sources
+//   if they trigger false positives.
+// - Pair with a follow-up query checking for a SUCCESSFUL logon (EventID 4624)
+//   from the same IP shortly after the failed attempts, to prioritize
+//   incidents where the brute force may have succeeded.

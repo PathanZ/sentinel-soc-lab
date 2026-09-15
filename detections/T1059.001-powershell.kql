@@ -1,0 +1,25 @@
+// Detection: Malicious PowerShell execution
+// MITRE ATT&CK: T1059.001 - Command and Scripting Interpreter: PowerShell
+// Data source: SecurityEvent (Windows Security Event Log via Azure Monitor Agent)
+// Trigger event: 4688 (A new process has been created) with command-line auditing enabled
+
+SecurityEvent
+| where EventID == 4688
+| where NewProcessName has_any ("powershell.exe", "pwsh.exe")
+| where CommandLine has_any (
+    "-enc", "-EncodedCommand", "-nop", "-noprofile",
+    "-w hidden", "-windowstyle hidden",
+    "IEX", "Invoke-Expression",
+    "DownloadString", "DownloadFile",
+    "-ExecutionPolicy Bypass"
+  )
+| project TimeGenerated, Computer, Account, NewProcessName, CommandLine, ParentProcessName
+| order by TimeGenerated desc
+
+// Tuning notes:
+// - Command-line flags list is a starting set of common obfuscation/LOLBin
+//   indicators; expand as Atomic Red Team tests reveal additional patterns.
+// - Requires "Process Creation Events" / command-line auditing to be enabled
+//   in the Data Collection Rule — verify before relying on CommandLine field.
+// - Consider correlating ParentProcessName to flag PowerShell spawned from
+//   Office apps or browsers as higher-severity.

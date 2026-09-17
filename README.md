@@ -1,5 +1,4 @@
-# Sentinel SOC Detection & Response Lab                                                                                                               📄 [Non-technical case study summary](Sentinel-SOC-Lab-Case-Study.pdf)
-
+# Sentinel SOC Detection & Response Lab                                                                                                            
 ## Overview
 End-to-end SOC simulation: deployed Microsoft Sentinel, engineered custom
 detections mapped to MITRE ATT&CK, validated them against real attack

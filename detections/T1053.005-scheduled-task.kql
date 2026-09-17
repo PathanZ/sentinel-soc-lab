@@ -1,12 +1,10 @@
-// Detection: Persistence via scheduled task
-// MITRE ATT&CK: T1053.005 - Scheduled Task/Job: Scheduled Task
-// Data source: SecurityEvent (Windows Security Event Log via Azure Monitor Agent)
-// Trigger event: 4698 (A scheduled task was created)
+// T1053.005 - Scheduled Task/Job: Scheduled Task
+// Detects creation of new scheduled tasks (Event ID 4698)
+// Data source: SecurityEvent (Windows Security Events via AMA)
 
 SecurityEvent
 | where EventID == 4698
-| extend TaskName = extractjson("$.TaskName", TaskContentXML)
-| project TimeGenerated, Computer, Account = SubjectAccount, TaskName, TaskContentXML
+| project TimeGenerated, Computer, Account, Activity
 | order by TimeGenerated desc
 
 // Tuning notes:
@@ -17,3 +15,4 @@ SecurityEvent
 //   as higher-severity.
 // - Consider a companion query on EventID 4699 (task deleted) / 4702 (task
 //   updated) to catch defense-evasion cleanup after persistence is achieved.
+

